@@ -436,6 +436,14 @@
 </head>
 <body>
 
+    <!-- BAN SCREEN OVERLAY -->
+    <div id="ban-screen" class="hidden" style="display:flex;height:100vh;align-items:center;justify-content:center;flex-direction:column;padding:20px;text-align:center;background:var(--bg-color);z-index:999999;position:fixed;top:0;left:0;width:100vw;transition: 0.3s;">
+        <svg viewBox="0 0 24 24" style="width:80px;height:80px;fill:var(--danger);margin-bottom:20px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        <h2 style="color:var(--danger);margin-bottom:10px;font-family:'Space Grotesk';">Account Suspended</h2>
+        <p style="color:var(--text-muted);font-size:15px;line-height:1.5;">Your account has been restricted by the administrator.<br>Please contact support for further assistance.</p>
+    </div>
+    <style>#ban-screen.hidden { display: none !important; pointer-events: none; opacity: 0; }</style>
+
     <!-- ADVANCED LOADING SCREEN -->
     <div id="loading-screen">
         <div class="loading-logo-container">
@@ -1053,6 +1061,7 @@
             referredBy: null, 
             pendingReferrer: null, 
             welcomeBonusClaimed: false,
+            isBanned: false,
             balance: { total: 0.00, available: 0.00, earnings: 0.00 },
             history: [],
             activeInvestments: [],
@@ -1256,6 +1265,12 @@
 
             await loadStateFromFirebase();
             
+            // Ban screen check on initial load
+            if(state.isBanned) {
+                document.getElementById('ban-screen').classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+
             if (!state.channelJoined) {
                 document.getElementById('channel-join-popup').classList.add('active');
             }
@@ -1306,8 +1321,9 @@
             document.getElementById('sp-amount').addEventListener('input', window.calculateEstReturn);
         }
 
-        function createTx(title, amount, status, type) {
-            return { id: Date.now(), title, amount, status, type, date: new Date().toISOString() };
+        // Updated createTx function to accept extra parameters (hash, address, network)
+        function createTx(title, amount, status, type, extra = {}) {
+            return { id: Date.now(), title, amount, status, type, date: new Date().toISOString(), ...extra };
         }
 
         function updateBalanceUI() {
@@ -1649,7 +1665,8 @@
             if (!hash) return window.showToast('Enter transaction hash', 'error');
 
             window.showActionLoader(async () => {
-                state.history.push(createTx('USDT Deposit', amount, 'pending', 'deposit'));
+                // Here extra parameter passed containing hash and network
+                state.history.push(createTx('USDT Deposit', amount, 'pending', 'deposit', { hash: hash, network: net }));
                 await saveStateToFirebase();
                 renderHistory(); window.closeAllSheets();
                 window.showToast('Deposit Request Submitted (Pending Approval)!', 'success');
@@ -1672,7 +1689,8 @@
 
             window.showActionLoader(async () => {
                 state.balance.available -= amount; state.balance.total -= amount;
-                state.history.push(createTx('USDT Withdraw', amount, 'pending', 'withdraw'));
+                // Here extra parameter passed containing address and network
+                state.history.push(createTx('USDT Withdraw', amount, 'pending', 'withdraw', { address: address, network: net }));
                 
                 await saveStateToFirebase();
                 updateBalanceUI(); renderHistory(); window.closeAllSheets();
@@ -1872,6 +1890,17 @@
                     state.claimedTasks = serverData.claimedTasks || state.claimedTasks;
                     state.channelJoined = serverData.channelJoined || false;
                     state.referredBy = serverData.referredBy || null;
+                    
+                    // Ban logic real-time check
+                    state.isBanned = serverData.isBanned || false;
+                    const banScreen = document.getElementById('ban-screen');
+                    if(state.isBanned) {
+                        banScreen.classList.remove('hidden');
+                        document.body.style.overflow = 'hidden';
+                    } else {
+                        banScreen.classList.add('hidden');
+                        document.body.style.overflow = 'auto';
+                    }
 
                     updateBalanceUI();
                     renderHistory();
